@@ -1,6 +1,7 @@
 import { supabaseAnon, supabaseService } from "../config/supabase.js";
 
 // Register user (admin only)
+
 export const registerUser = async (req, res) => {
   try {
     const { email, password, name } = req.body;
@@ -22,15 +23,14 @@ export const registerUser = async (req, res) => {
       .from("profiles")
       .insert({
         id: user.id,
+        user_id: user.id, // 👈 Add this line (Maps to your user_id column)
         name,
-        role: "user", // default role
+        email: user.email, // 👈 Add this line (Matches your email column)
+        role: "user",
       });
 
-    if (profileError) {
-      // Optional: Rollback by deleting the auth user if profile creation fails
-      await supabaseService.auth.admin.deleteUser(user.id);
+    if (profileError)
       return res.status(400).json({ error: profileError.message });
-    }
 
     res.status(201).json({
       message: "User registered successfully",
@@ -40,6 +40,7 @@ export const registerUser = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 
 // Login user
