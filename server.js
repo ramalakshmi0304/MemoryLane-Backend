@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -38,12 +39,14 @@ app.use("/uploads", express.static("uploads", {
 
 app.use(express.json());
 
+
 // --- Routes ---
 app.use("/api/auth", authRoutes);
 app.use("/api/memories", memoryRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/albums", albumRoutes);
 app.use('/api/ai', aiRoutes);
+
 
 // Test route
 app.get("/", (req, res) => {

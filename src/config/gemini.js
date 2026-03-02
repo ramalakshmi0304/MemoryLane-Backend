@@ -3,12 +3,11 @@ import "dotenv/config";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// CHANGE THIS LINE: from 'gemini-1.5-flash' to 'gemini-2.5-flash'
+// USE FLASH-LITE: 1,000 requests/day vs 20 on standard Flash
 export const geminiFlash = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash" 
+  model: "gemini-2.5-flash-lite" 
 });
 
-// If you have a Pro fallback, update it too
 export const geminiPro = genAI.getGenerativeModel({
   model: "gemini-2.5-pro"
 });

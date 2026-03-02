@@ -162,27 +162,26 @@ export const getAlbumById = async (req, res) => {
 export const addMemoriesToAlbum = async (req, res) => {
   try {
     const { id: albumId } = req.params;
-    const files = req.files; 
-    const { memoryIds, memory_ids } = req.body; 
     
-    // 1. Handle selection from Library (JSON)
-    const idsToLink = memoryIds || memory_ids; 
-    
-    if (idsToLink && Array.isArray(idsToLink)) {
-      const rows = idsToLink.map(mId => ({ 
+    // Multer sometimes puts JSON fields in req.body if sent as FormData, 
+    // or Axios sends it as plain JSON. 
+    const memoryIds = req.body.memoryIds || req.body.memory_ids;
+
+    if (memoryIds) {
+      const idsArray = Array.isArray(memoryIds) ? memoryIds : JSON.parse(memoryIds);
+      
+      const rows = idsArray.map(mId => ({ 
         album_id: albumId, 
         memory_id: mId 
       }));
 
-      // FIX: Use .upsert with onConflict to ignore duplicates
       const { error } = await supabaseService
         .from("album_memories")
         .upsert(rows, { onConflict: 'album_id,memory_id' });
 
       if (error) throw error;
-      return res.status(200).json({ message: "Memories linked successfully" });
+      return res.status(200).json({ message: "Linked successfully" });
     }
-
     // 2. Handle new File Uploads (Multipart)
     if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files or memory IDs provided." });
@@ -321,5 +320,27 @@ export const downloadAlbumZip = async (req, res) => {
   } catch (err) {
     console.error("DOWNLOAD ZIP ERROR:", err);
     if (!res.headersSent) res.status(500).json({ message: "Failed to create ZIP archive" });
+  }
+};
+
+export const updateAlbum = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    const userId = req.user.id;
+
+    const { data, error } = await supabaseService
+      .from("albums")
+      .update({ name, description })
+      .eq("id", id)
+      .eq("user_id", userId) // Safety: Only owner can update
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error("UPDATE ERROR:", err.message);
+    return res.status(500).json({ message: "Failed to update album" });
   }
 };

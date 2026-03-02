@@ -9,6 +9,7 @@ import {
   addMemoriesToAlbum, 
   removeMemoryFromAlbum,
   deleteAlbum,
+  updateAlbum,
   downloadAlbumZip // 1. Add this import
 } from "../controllers/album.controller.js"; 
 
@@ -23,6 +24,7 @@ router.get("/", protect, getUserAlbums);
 router.post("/", protect, createAlbum);
 router.get("/:id", protect, getAlbumById);
 router.post("/:id/memories", protect, upload.array("files", 10), addMemoriesToAlbum);
+router.put("/:id", protect, updateAlbum);
 router.delete('/:id', protect, deleteAlbum);
 
 
