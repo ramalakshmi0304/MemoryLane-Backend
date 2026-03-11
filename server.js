@@ -14,26 +14,28 @@ const PORT = process.env.PORT || 5000;
 
 // --- CORS Configuration ---
 const allowedOrigins = [
-  "http://localhost:5173", 
+  "http://localhost:5173",
   "https://memory-lane-frontend-three.vercel.app"
 ];
 
 app.use(cors({
-  origin: (origin, callback) => {
-    // 1. Allow requests with no origin (like Postman or mobile apps)
-    if (!origin) return callback(null, true);
-    
-    // 2. Check if origin is in our list or is a Vercel preview branch
-    const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".vercel.app");
-    
-    if (isAllowed) {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow Postman
+
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith(".vercel.app") // allow preview deployments
+    ) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error("CORS not allowed"));
     }
   },
-  credentials: true,
+  methods: ["GET","POST","PUT","DELETE","PATCH"],
+  credentials: true
 }));
+
+
 
 // --- Middleware ---
 app.use(express.json());
@@ -45,6 +47,7 @@ app.use("/uploads", express.static("uploads", {
     res.set("Cross-Origin-Resource-Policy", "cross-origin");
   }
 }));
+
 
 // --- Routes ---
 app.use("/api/auth", authRoutes);

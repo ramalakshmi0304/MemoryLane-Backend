@@ -20,7 +20,7 @@ export const flattenMemoryData = (m) => {
   const getUrl = (path) => {
     if (!path) return null;
     if (path.startsWith("http")) return path; // Already a full URL
-    
+
     // Construct the Supabase Public URL manually if getPublicUrl isn't working
     const bucket = "memories";
     const supabaseUrl = process.env.SUPABASE_URL; // e.g., https://xyz.supabase.co
@@ -40,6 +40,9 @@ export const flattenMemoryData = (m) => {
 
 
 export const createMemory = async (req, res) => {
+  console.log("--- DEBUG: REQUEST RECEIVED ---");
+  console.log("Body Fields:", Object.keys(req.body));
+  console.log("Files found:", req.files ? Object.keys(req.files) : "None");
   try {
     const { title, description, memory_date, location, tags, is_milestone, album_id } = req.body;
     const userId = req.user.id;
@@ -73,9 +76,9 @@ export const createMemory = async (req, res) => {
 
       const { error } = await supabaseService.storage
         .from("memories")
-        .upload(fileName, file.buffer, { 
+        .upload(fileName, file.buffer, {
           contentType: file.mimetype,
-          upsert: true 
+          upsert: true
         });
 
       if (error) throw error;
@@ -86,20 +89,20 @@ export const createMemory = async (req, res) => {
 
     // 3. Process Image/Video
     if (imageFile) {
-  const path = await uploadToStorage(imageFile, "display");
-  
-  // ADD THIS LINE: Get the actual public URL from Supabase
-  const { data: { publicUrl } } = supabaseService
-    .storage
-    .from("memories")
-    .getPublicUrl(path);
+      const path = await uploadToStorage(imageFile, "display");
 
-  mediaToInsert.push({
-    memory_id: memory.id,
-    file_url: publicUrl, // Save the FULL URL here
-    file_type: imageFile.mimetype.startsWith("video") ? "video" : "image"
-  });
-}
+      // ADD THIS LINE: Get the actual public URL from Supabase
+      const { data: { publicUrl } } = supabaseService
+        .storage
+        .from("memories")
+        .getPublicUrl(path);
+
+      mediaToInsert.push({
+        memory_id: memory.id,
+        file_url: publicUrl, // Save the FULL URL here
+        file_type: imageFile.mimetype.startsWith("video") ? "video" : "image"
+      });
+    }
 
     // 4. Process Audio
     if (audioFile) {
@@ -121,13 +124,13 @@ export const createMemory = async (req, res) => {
       let tagList = [];
       try {
         // Handle stringified JSON or raw comma-separated strings
-        tagList = typeof tags === 'string' && tags.startsWith('[') 
-          ? JSON.parse(tags) 
+        tagList = typeof tags === 'string' && tags.startsWith('[')
+          ? JSON.parse(tags)
           : (typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : tags);
 
         for (const tagIdentifier of tagList) {
           if (!tagIdentifier) continue;
-          
+
           let tagId;
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagIdentifier);
 
@@ -155,13 +158,14 @@ export const createMemory = async (req, res) => {
 
           if (tagId) {
             await supabaseService.from("memory_tags").upsert(
-              { memory_id: memory.id, tag_id: tagId }, 
+              { memory_id: memory.id, tag_id: tagId },
               { onConflict: 'memory_id, tag_id' }
             );
           }
         }
       } catch (err) {
-        console.error("⚠️ Tag processing failed but memory saved:", err.message);
+        console.error("🔥 Detailed Create Error:", err);
+        res.status(500).json({ error: err.message, details: err.details });
       }
     }
 
@@ -202,12 +206,12 @@ export const bulkUploadMemories = async (req, res) => {
         // 1. Create the Memory record
         const { data: memory, error: memErr } = await supabaseService
           .from("memories")
-          .insert({ 
-            user_id: userId, 
+          .insert({
+            user_id: userId,
             title: title || file.originalname,
             location: location || "",
             memory_date: new Date().toISOString().split('T')[0],
-            album_id: album_id || null 
+            album_id: album_id || null
           })
           .select()
           .single();
@@ -232,7 +236,7 @@ export const bulkUploadMemories = async (req, res) => {
           .from("media")
           .insert({
             memory_id: memory.id,
-            file_url: fileName, 
+            file_url: fileName,
             file_type: file.mimetype.startsWith("video") ? "video" : "image"
           });
 
@@ -245,9 +249,9 @@ export const bulkUploadMemories = async (req, res) => {
       }
     }
 
-    res.status(200).json({ 
-      message: `${uploadedMemories.length} memories processed`, 
-      memories: uploadedMemories 
+    res.status(200).json({
+      message: `${uploadedMemories.length} memories processed`,
+      memories: uploadedMemories
     });
 
   } catch (err) {
@@ -347,14 +351,14 @@ export const getMemories = async (req, res) => {
     if (search) query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
 
     const { data, error, count } = await query.range(from, to).order("created_at", { ascending: false });
-    
+
     if (error) throw error;
 
     const sanitizedData = data.map(flattenMemoryData);
-    res.status(200).json({ 
-      data: sanitizedData, 
-      memories: sanitizedData, 
-      pagination: { total: count || 0, currentPage: Number(page) } 
+    res.status(200).json({
+      data: sanitizedData,
+      memories: sanitizedData,
+      pagination: { total: count || 0, currentPage: Number(page) }
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch user memories" });
@@ -389,11 +393,11 @@ export const getRandomMemory = async (req, res) => {
 
 export const updateMemory = async (req, res) => {
   try {
-    const { id } = req.params; // This is the memory_id
+    const { id } = req.params;
     const userId = req.user.id;
     const { title, description, location, memory_date, is_milestone } = req.body;
 
-    // 1. Update the Memory text details first
+    // 1. Update the Memory text details
     const { error: memoryUpdateError } = await supabaseService
       .from("memories")
       .update({
@@ -408,13 +412,13 @@ export const updateMemory = async (req, res) => {
 
     if (memoryUpdateError) throw memoryUpdateError;
 
-    // 2. Handle Image Upload if a file exists
+    // 2. Handle File Upload (Image or Video)
     const file = req.files?.file ? req.files.file[0] : null;
 
     if (file) {
       const fileExt = file.originalname.split(".").pop();
-      // Using memory_id in the path to keep it organized
       const fileName = `${userId}/${id}/display-${Date.now()}.${fileExt}`;
+      const fileType = imageFile.mimetype.startsWith("video/") ? "video" : "image";
 
       // Upload to Storage
       const { error: uploadError } = await supabaseService.storage
@@ -430,15 +434,17 @@ export const updateMemory = async (req, res) => {
         .from("memories")
         .getPublicUrl(fileName);
 
-      const newImageUrl = urlData.publicUrl;
+      const newFileUrl = urlData.publicUrl;
 
       // 3. Update the MEDIA table
-      // We target the record where memory_id matches and file_type is 'image'
+      // We look for existing media record to update, or insert if it doesn't exist
       const { error: mediaUpdateError } = await supabaseService
         .from("media")
-        .update({ file_url: newImageUrl })
-        .eq("memory_id", id)
-        .eq("file_type", "image");
+        .upsert({
+          memory_id: id,
+          file_url: newFileUrl,
+          file_type: fileType
+        }, { onConflict: 'memory_id' }); // Ensures existing media for this memory is updated
 
       if (mediaUpdateError) throw mediaUpdateError;
     }
@@ -479,7 +485,7 @@ export const deleteMemory = async (req, res) => {
     if (memoryRecord.user_id !== authenticatedUser) {
       console.log("⚠️ MISMATCH DETECTED!");
       console.log(`Memory belongs to ${memoryRecord.user_id} but you are ${authenticatedUser}`);
-      
+
       // FOR NOW: Let's bypass this check to see if we can at least delete it
       console.log("FORCE: Bypassing ownership check to test deletion...");
     }
